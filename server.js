@@ -15,8 +15,8 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",                 // Local dev
-      "https://shauryatools.vercel.app/"       // Your frontend domain
+      "http://localhost:5173",
+      "https://shauryatools.vercel.app"
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -30,8 +30,8 @@ app.use(
 app.use(express.json());
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,                 // 100 requests per IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     success: false,
     error: "Too many requests. Please try again later."
@@ -41,13 +41,13 @@ const limiter = rateLimit({
 app.use(limiter);
 
 /* =========================
-   Health Check Route
+   Health Route
 ========================= */
 
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Shaurya Tools Backend is running 🚀"
+    message: "Shaurya Tools Backend Running 🚀"
   });
 });
 
