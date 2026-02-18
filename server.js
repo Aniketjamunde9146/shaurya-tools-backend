@@ -16,7 +16,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",                 // Local dev
-      "https://shaurya-tools.vercel.app"       // Your frontend domain
+      "https://shauryatools.vercel.app/"       // Your frontend domain
     ],
     methods: ["GET", "POST"],
     credentials: true,
