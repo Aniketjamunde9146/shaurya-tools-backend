@@ -1,13 +1,13 @@
 /* =============================================================
    utils/promptBuilder.js
-   Simple tools  → Groq  (fast & free)
+  Simple tools  → OpenRouter free model
    Complex tools → OpenAI (powerful, streaming)
 ============================================================= */
 
 function buildPrompt(tool, input) {
   switch (tool) {
 
-    /* ── SIMPLE — Groq handles these ──────────────────────── */
+    /* ── SIMPLE — OpenRouter handles these ────────────────── */
 
     case "hashtag":
       return `Generate 20 viral Instagram hashtags for: ${input}. Return only the hashtags, one per line.`;
@@ -68,7 +68,7 @@ STRICT RULES:
 /* Which AI provider should handle each tool */
 export function getProviderForTool(tool) {
   const openaiTools = ["landing"];
-  return openaiTools.includes(tool) ? "openai" : "groq";
+  return openaiTools.includes(tool) ? "openai" : "openrouter";
 }
 
 export default buildPrompt;

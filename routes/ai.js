@@ -7,15 +7,15 @@ const router = express.Router();
 /* =============================================================
    Constants
 ============================================================= */
-const GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const GROQ_MODEL   = "llama-3.1-8b-instant"; // fast, free — for simple tasks
-const OPENAI_MODEL = "gpt-4o-mini";           // powerful  — for complex tasks
+const DEFAULT_OPENROUTER_MODEL = "openrouter/free";
+const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 
 /* =============================================================
    POST /api/ai
    Auto-routes based on tool:
-     groq  → hashtag, readme, seo, blog  (non-streaming JSON)
+    openrouter → hashtag, readme, seo, blog  (non-streaming JSON)
      openai → landing                     (streaming SSE)
 ============================================================= */
 router.post("/", async (req, res) => {
@@ -37,7 +37,7 @@ router.post("/", async (req, res) => {
       return await handleOpenAIStream(req, res, tool, input);
     }
 
-    return await handleGroq(req, res, tool, input);
+    return await handleOpenRouter(req, res, tool, input);
 
   } catch (error) {
     console.error("ROUTER ERROR:", error.message);
@@ -60,32 +60,37 @@ router.post("/landing", async (req, res) => {
 });
 
 /* =============================================================
-   GROQ — non-streaming, returns JSON
+  OPENROUTER — non-streaming, returns JSON
    Used for: hashtag, readme, seo, blog
 ============================================================= */
-async function handleGroq(req, res, tool, input) {
-  if (!process.env.GROQ_API_KEY) {
+async function handleOpenRouter(req, res, tool, input) {
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
+
+  if (!openRouterApiKey) {
     return res.status(500).json({
       success: false,
-      error: "GROQ_API_KEY is not configured on the server",
+      error: "OPENROUTER_API_KEY is not configured on the server",
     });
   }
 
   try {
     const finalPrompt = buildPrompt(tool, input);
+    const model = process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
 
     const response = await axios.post(
-      GROQ_URL,
+      OPENROUTER_URL,
       {
-        model:       GROQ_MODEL,
+        model,
         messages:    [{ role: "user", content: finalPrompt }],
         temperature: 0.7,
         max_tokens:  1500,
       },
       {
         headers: {
-          Authorization:  `Bearer ${process.env.GROQ_API_KEY}`,
+          Authorization:  `Bearer ${openRouterApiKey}`,
           "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
+          "X-Title": "Shaurya Tools",
         },
         timeout: 20000,
       }
@@ -93,16 +98,16 @@ async function handleGroq(req, res, tool, input) {
 
     const content = response.data?.choices?.[0]?.message?.content || "";
 
-    console.log(`✅ [GROQ] tool=${tool} | chars=${content.length}`);
+    console.log(`✅ [OPENROUTER:${model}] tool=${tool} | chars=${content.length}`);
 
     return res.status(200).json({
       success:  true,
       data:     content,
-      provider: "groq",
+      provider: "openrouter",
     });
 
   } catch (error) {
-    console.error("GROQ ERROR:", error.response?.data || error.message);
+    console.error("OPENROUTER ERROR:", error.response?.data || error.message);
 
     const status = error.response?.status || 500;
     const msg    = error.response?.data?.error?.message || error.message;
@@ -132,11 +137,12 @@ async function handleOpenAIStream(req, res, tool, input) {
 
   try {
     const finalPrompt = buildPrompt(tool, input);
+    const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 
     const openaiRes = await axios.post(
       OPENAI_URL,
       {
-        model:       OPENAI_MODEL,
+        model,
         max_tokens:  4000,
         stream:      true,
         temperature: 0.7,
