@@ -11,7 +11,6 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_OPENROUTER_MODEL = "openrouter/free";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
-const SUPPORTED_TOOLS = new Set(["hashtag", "readme", "seo", "blog", "landing"]);
 const MAX_INPUT_LENGTH = 12000;
 
 /* =============================================================
@@ -25,10 +24,10 @@ router.post("/", async (req, res) => {
     const { tool } = req.body;
     const input = normalizeInput(req.body.input);
 
-    if (!SUPPORTED_TOOLS.has(tool)) {
+    if (typeof tool !== "string" || !/^[a-zA-Z0-9_-]+$/.test(tool)) {
       return res.status(400).json({
         success: false,
-        error: `Unsupported tool. Supported tools: ${[...SUPPORTED_TOOLS].join(", ")}`,
+        error: "A valid tool name is required",
       });
     }
 
