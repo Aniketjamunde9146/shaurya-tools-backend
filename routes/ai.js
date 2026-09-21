@@ -11,6 +11,8 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_OPENROUTER_MODEL = "openrouter/free";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const SUPPORTED_TOOLS = new Set(["hashtag", "readme", "seo", "blog", "landing"]);
+const MAX_INPUT_LENGTH = 12000;
 
 /* =============================================================
    POST /api/ai
@@ -22,11 +24,19 @@ router.post("/", async (req, res) => {
   try {
     const { tool, input } = req.body;
 
-    if (!tool || !input) {
+    if (!SUPPORTED_TOOLS.has(tool)) {
       return res.status(400).json({
         success: false,
-        error: "Tool and input are required",
+        error: "Unsupported tool",
       });
+    }
+
+    if (typeof input !== "string" || input.trim().length === 0) {
+      return res.status(400).json({ success: false, error: "Input is required" });
+    }
+
+    if (input.length > MAX_INPUT_LENGTH) {
+      return res.status(413).json({ success: false, error: "Input is too large" });
     }
 
     const provider = getProviderForTool(tool);
@@ -53,8 +63,11 @@ router.post("/", async (req, res) => {
 router.post("/landing", async (req, res) => {
   // Ensure input is present (frontend sends { tool, input })
   const input = req.body.input;
-  if (!input) {
+  if (typeof input !== "string" || input.trim().length === 0) {
     return res.status(400).json({ success: false, error: "Input is required" });
+  }
+  if (input.length > MAX_INPUT_LENGTH) {
+    return res.status(413).json({ success: false, error: "Input is too large" });
   }
   return await handleOpenAIStream(req, res, "landing", input);
 });
@@ -107,7 +120,7 @@ async function handleOpenRouter(req, res, tool, input) {
     });
 
   } catch (error) {
-    console.error("OPENROUTER ERROR:", error.response?.data || error.message);
+    console.error("OPENROUTER ERROR:", error.response?.status || "request", error.response?.data?.error?.message || error.message);
 
     const status = error.response?.status || 500;
     const msg    = error.response?.data?.error?.message || error.message;
@@ -191,7 +204,7 @@ async function handleOpenAIStream(req, res, tool, input) {
     });
 
   } catch (error) {
-    console.error("OPENAI ERROR:", error.response?.data || error.message);
+    console.error("OPENAI ERROR:", error.response?.status || "request", error.response?.data?.error?.message || error.message);
 
     /* Headers already sent — can't send JSON error, just close */
     if (res.headersSent) {

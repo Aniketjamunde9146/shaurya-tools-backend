@@ -24,6 +24,14 @@ function buildPrompt(tool, input) {
     /* ── COMPLEX — OpenAI handles these ───────────────────── */
 
     case "landing": {
+      let landingInput;
+
+      try {
+        landingInput = JSON.parse(input);
+      } catch {
+        throw new Error("Landing input must be valid JSON");
+      }
+
       const {
         businessName,
         description,
@@ -33,7 +41,7 @@ function buildPrompt(tool, input) {
         sections,
         cta,
         targetAudience,
-      } = JSON.parse(input);
+      } = landingInput;
 
       return `You are an expert frontend developer and UI/UX designer. Generate a complete, stunning, production-ready single-page HTML landing page.
 

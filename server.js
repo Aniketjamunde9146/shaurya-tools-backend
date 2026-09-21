@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import aiRoute from "./routes/ai.js";
 
@@ -8,6 +9,8 @@ dotenv.config();
 dotenv.config({ path: ".env.local", override: true });
 
 const app = express();
+app.disable("x-powered-by");
+app.use(helmet());
 
 /* =========================
    CORS Configuration
@@ -18,8 +21,9 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:3000",
-      "https://shauryatools.vercel.app"
-    ],
+      "https://shauryatools.vercel.app",
+      process.env.FRONTEND_URL,
+    ].filter(Boolean),
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -29,11 +33,13 @@ app.use(
    Middlewares
 ========================= */
 
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     error: "Too many requests. Please try again later."
