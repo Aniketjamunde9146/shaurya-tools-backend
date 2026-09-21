@@ -22,12 +22,13 @@ const MAX_INPUT_LENGTH = 12000;
 ============================================================= */
 router.post("/", async (req, res) => {
   try {
-    const { tool, input } = req.body;
+    const { tool } = req.body;
+    const input = normalizeInput(req.body.input);
 
     if (!SUPPORTED_TOOLS.has(tool)) {
       return res.status(400).json({
         success: false,
-        error: "Unsupported tool",
+        error: `Unsupported tool. Supported tools: ${[...SUPPORTED_TOOLS].join(", ")}`,
       });
     }
 
@@ -62,7 +63,7 @@ router.post("/", async (req, res) => {
 ============================================================= */
 router.post("/landing", async (req, res) => {
   // Ensure input is present (frontend sends { tool, input })
-  const input = req.body.input;
+  const input = normalizeInput(req.body.input);
   if (typeof input !== "string" || input.trim().length === 0) {
     return res.status(400).json({ success: false, error: "Input is required" });
   }
@@ -71,6 +72,12 @@ router.post("/landing", async (req, res) => {
   }
   return await handleOpenAIStream(req, res, "landing", input);
 });
+
+function normalizeInput(input) {
+  if (typeof input === "string") return input;
+  if (input && typeof input === "object") return JSON.stringify(input);
+  return "";
+}
 
 /* =============================================================
   OPENROUTER — non-streaming, returns JSON
