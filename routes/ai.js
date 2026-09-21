@@ -141,13 +141,6 @@ async function handleOpenAIStream(req, res, tool, input) {
     });
   }
 
-  /* SSE headers — must be set before any data is sent */
-  res.setHeader("Content-Type",      "text/event-stream");
-  res.setHeader("Cache-Control",     "no-cache");
-  res.setHeader("Connection",        "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
-  res.flushHeaders();
-
   try {
     const finalPrompt = buildPrompt(tool, input);
     const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
@@ -177,6 +170,13 @@ async function handleOpenAIStream(req, res, tool, input) {
         timeout:      90000,
       }
     );
+
+    /* Send SSE headers only after the provider accepts the request. */
+    res.setHeader("Content-Type",      "text/event-stream");
+    res.setHeader("Cache-Control",     "no-cache");
+    res.setHeader("Connection",        "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
 
     console.log(`✅ [OPENAI] tool=${tool} | streaming started`);
 
