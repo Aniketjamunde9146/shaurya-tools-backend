@@ -36,7 +36,7 @@ router.post("/", async (req, res) => {
     }
 
     if (input.length > MAX_INPUT_LENGTH) {
-      return res.status(413).json({ success: false, error: "Input is too large" });
+      return res.status(400).json({ success: false, error: "Input is too large" });
     }
 
     const provider = getProviderForTool(tool);
@@ -67,7 +67,7 @@ router.post("/landing", async (req, res) => {
     return res.status(400).json({ success: false, error: "Input is required" });
   }
   if (input.length > MAX_INPUT_LENGTH) {
-    return res.status(413).json({ success: false, error: "Input is too large" });
+    return res.status(400).json({ success: false, error: "Input is too large" });
   }
   return await handleOpenAIStream(req, res, "landing", input);
 });
@@ -116,6 +116,13 @@ async function handleOpenRouter(req, res, tool, input) {
     );
 
     const content = response.data?.choices?.[0]?.message?.content || "";
+
+    if (!content.trim()) {
+      return res.status(502).json({
+        success: false,
+        error: "The AI provider returned an empty result",
+      });
+    }
 
     console.log(`✅ [OPENROUTER:${model}] tool=${tool} | chars=${content.length}`);
 
@@ -186,12 +193,51 @@ async function handleOpenAIStream(req, res, tool, input) {
 
     console.log(`✅ [OPENAI] tool=${tool} | streaming started`);
 
-    /* Pipe OpenAI SSE stream directly to client */
+    let buffer = "";
+    let contentSent = false;
+    let streamEnded = false;
+
+    const sendError = (message) => {
+      if (!streamEnded) {
+        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      }
+    };
+
+    const processLine = (line) => {
+      if (!line.startsWith("data:")) return;
+
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") return;
+
+      try {
+        const parsed = JSON.parse(data);
+        const content = parsed.choices?.[0]?.delta?.content;
+
+        if (typeof content === "string" && content.length > 0) {
+          contentSent = true;
+          res.write(`data: ${JSON.stringify({
+            choices: [{ delta: { content } }],
+          })}\n\n`);
+        }
+
+        if (parsed.error) sendError(parsed.error.message || "AI stream failed");
+      } catch {
+        sendError("The AI provider returned an invalid stream event");
+      }
+    };
+
     openaiRes.data.on("data", (chunk) => {
-      res.write(chunk.toString());
+      buffer += chunk.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      lines.forEach(processLine);
     });
 
     openaiRes.data.on("end", () => {
+      if (streamEnded) return;
+      if (buffer.trim()) processLine(buffer.trim());
+      if (!contentSent) sendError("The AI provider returned no generated content");
+      streamEnded = true;
       res.write("data: [DONE]\n\n");
       res.end();
       console.log(`✅ [OPENAI] tool=${tool} | stream complete`);
@@ -199,7 +245,9 @@ async function handleOpenAIStream(req, res, tool, input) {
 
     openaiRes.data.on("error", (err) => {
       console.error("OPENAI STREAM ERROR:", err.message);
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      sendError("The AI stream was interrupted");
+      streamEnded = true;
+      res.write("data: [DONE]\n\n");
       res.end();
     });
 
@@ -218,7 +266,9 @@ async function handleOpenAIStream(req, res, tool, input) {
       return;
     }
 
-    const status = error.response?.status || 500;
+    const status = error.message === "Landing input must be valid JSON"
+      ? 400
+      : error.response?.status || 500;
     const msg    = error.response?.data?.error?.message || error.message;
 
     return res.status(status).json({ success: false, error: msg });

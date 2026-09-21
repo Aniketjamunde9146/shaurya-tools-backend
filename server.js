@@ -40,10 +40,13 @@ const limiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    success: false,
-    error: "Too many requests. Please try again later."
-  }
+  handler: (req, res) => {
+    res.setHeader("Retry-After", "900");
+    return res.status(429).json({
+      success: false,
+      error: "Too many requests. Please try again later.",
+    });
+  },
 });
 
 app.use(limiter);
@@ -83,9 +86,13 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
 
-  res.status(500).json({
+  const status = err.type === "entity.parse.failed" || err.type === "entity.too.large"
+    ? 400
+    : 500;
+
+  res.status(status).json({
     success: false,
-    error: "Internal Server Error"
+    error: status === 400 ? "Invalid JSON request body" : "Internal Server Error"
   });
 });
 
